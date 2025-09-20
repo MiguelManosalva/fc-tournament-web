@@ -257,42 +257,79 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
       const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
       let matchNumber = 1;
 
-      // Generate 3 rounds where everyone plays exactly once per round
-      const rounds = 3;
+      const isOddPlayers = shuffledPlayers.length % 2 === 1;
 
-      for (let round = 1; round <= rounds; round++) {
-        const availablePlayers = [...shuffledPlayers];
-        const roundMatches: Match[] = [];
+      if (isOddPlayers) {
+        // For odd number of players, we need more rounds to ensure everyone plays the same amount
+        // Each player will play (totalPlayers - 1) matches, which ensures they play against most others
+        const totalRounds = shuffledPlayers.length; // One round per player for bye rotation
 
-        // Pair players randomly for this round
-        while (availablePlayers.length >= 2) {
-          const player1Index = 0;
-          const player2Index = Math.floor(Math.random() * (availablePlayers.length - 1)) + 1;
+        // Create a schedule where each player gets exactly one bye per full cycle
+        for (let round = 1; round <= totalRounds; round++) {
+          const availablePlayers = [...shuffledPlayers];
+          const roundMatches: Match[] = [];
 
-          const player1 = availablePlayers[player1Index];
-          const player2 = availablePlayers[player2Index];
+          // The player who gets a bye this round (rotate through all players)
+          const byePlayerIndex = (round - 1) % shuffledPlayers.length;
+          availablePlayers.splice(byePlayerIndex, 1); // Remove bye player
 
-          roundMatches.push({
-            id: crypto.randomUUID(),
-            tournamentId: tournament.id,
-            player1,
-            player2,
-            completed: false,
-            round: round,
-            matchNumber: matchNumber++
-          });
+          // Pair remaining players
+          while (availablePlayers.length >= 2) {
+            const player1 = availablePlayers.shift()!;
+            const player2 = availablePlayers.shift()!;
 
-          // Remove paired players from available list
-          availablePlayers.splice(Math.max(player1Index, player2Index), 1);
-          availablePlayers.splice(Math.min(player1Index, player2Index), 1);
+            roundMatches.push({
+              id: crypto.randomUUID(),
+              tournamentId: tournament.id,
+              player1,
+              player2,
+              completed: false,
+              round: round,
+              matchNumber: matchNumber++
+            });
+          }
+
+          matches.push(...roundMatches);
         }
+      } else {
+        // For even number of players, use the original 3-round system
+        const rounds = 3;
 
-        matches.push(...roundMatches);
+        for (let round = 1; round <= rounds; round++) {
+          const availablePlayers = [...shuffledPlayers];
+          const roundMatches: Match[] = [];
+
+          // Pair players randomly for this round
+          while (availablePlayers.length >= 2) {
+            const player1Index = 0;
+            const player2Index = Math.floor(Math.random() * (availablePlayers.length - 1)) + 1;
+
+            const player1 = availablePlayers[player1Index];
+            const player2 = availablePlayers[player2Index];
+
+            roundMatches.push({
+              id: crypto.randomUUID(),
+              tournamentId: tournament.id,
+              player1,
+              player2,
+              completed: false,
+              round: round,
+              matchNumber: matchNumber++
+            });
+
+            // Remove paired players from available list
+            availablePlayers.splice(Math.max(player1Index, player2Index), 1);
+            availablePlayers.splice(Math.min(player1Index, player2Index), 1);
+          }
+
+          matches.push(...roundMatches);
+        }
       }
 
       // Generate knockout phase (Semifinals + Final)
       // Top 4 players advance: 1st vs 4th, 2nd vs 3rd
-      const semifinalRound = rounds + 1;
+      const groupStageRounds = isOddPlayers ? shuffledPlayers.length : 3;
+      const semifinalRound = groupStageRounds + 1;
       const finalRound = semifinalRound + 1;
 
       // Semifinal 1: 1° vs 4°
@@ -375,7 +412,11 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
 
     // For Champions League format, update knockout phase when group stage is complete
     if (currentTournament.format === 'champions') {
-      const groupMatches = updatedMatches.filter(m => m.round <= 3);
+      // Determine how many rounds the group stage has based on player count
+      const isOddPlayers = currentTournament.players.length % 2 === 1;
+      const groupStageRounds = isOddPlayers ? currentTournament.players.length : 3;
+
+      const groupMatches = updatedMatches.filter(m => m.round && m.round <= groupStageRounds);
       const groupStageComplete = groupMatches.every(m => m.completed);
 
       if (groupStageComplete) {
@@ -383,27 +424,36 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
         const standings = get().getLeagueStandings({ ...currentTournament, matches: updatedMatches });
         const qualified = standings.slice(0, 4); // Top 4 players
 
+        console.log('🏆 Group stage complete! Updating knockout phase...');
+        console.log('📊 Standings:', standings.map(s => `${s.player.name} (${s.points} pts)`));
+        console.log('🎯 Qualified:', qualified.map(q => q.player.name));
+
         // Update semifinal matches
-        const semifinalRound = 4;
-        const semifinalMatches = updatedMatches.filter(m => m.round === semifinalRound);
+        const semifinalRound = groupStageRounds + 1;
 
         for (let i = 0; i < updatedMatches.length; i++) {
           const match = updatedMatches[i];
 
           if (match.round === semifinalRound && !match.completed) {
+            console.log(`🏟️ Checking match ${match.id}:`, match.player1.name, 'vs', match.player2.name);
+
             // Semifinal 1: 1st vs 4th
             if (match.player1.id === 'tbd-1st' && qualified[0]) {
+              console.log(`✅ Updating Player 1 to ${qualified[0].player.name}`);
               updatedMatches[i] = { ...match, player1: qualified[0].player };
             }
             if (match.player2.id === 'tbd-4th' && qualified[3]) {
+              console.log(`✅ Updating Player 2 to ${qualified[3].player.name}`);
               updatedMatches[i] = { ...match, player2: qualified[3].player };
             }
 
             // Semifinal 2: 2nd vs 3rd
             if (match.player1.id === 'tbd-2nd' && qualified[1]) {
+              console.log(`✅ Updating Player 1 to ${qualified[1].player.name}`);
               updatedMatches[i] = { ...match, player1: qualified[1].player };
             }
             if (match.player2.id === 'tbd-3rd' && qualified[2]) {
+              console.log(`✅ Updating Player 2 to ${qualified[2].player.name}`);
               updatedMatches[i] = { ...match, player2: qualified[2].player };
             }
           }
@@ -411,7 +461,8 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
       }
 
       // Update final match when semifinals are complete
-      const semifinalMatches = updatedMatches.filter(m => m.round === 4);
+      const semifinalRound = groupStageRounds + 1;
+      const semifinalMatches = updatedMatches.filter(m => m.round === semifinalRound);
       const semifinalsComplete = semifinalMatches.every(m => m.completed);
 
       if (semifinalsComplete) {
@@ -428,7 +479,8 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
         for (let i = 0; i < updatedMatches.length; i++) {
           const match = updatedMatches[i];
 
-          if (match.round === 5 && !match.completed) {
+          const finalRound = semifinalRound + 1;
+          if (match.round === finalRound && !match.completed) {
             // Update third place playoff
             if (match.player1.id === 'tbd-sf1-loser' && sf1Loser) {
               updatedMatches[i] = { ...match, player1: sf1Loser };
@@ -519,7 +571,7 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
 
     // For Champions League, need to recalculate and update knockout phase
     if (currentTournament.format === 'champions') {
-      const groupMatches = updatedMatches.filter(m => m.round <= 3);
+      const groupMatches = updatedMatches.filter(m => m.round && m.round <= 3);
       const groupStageComplete = groupMatches.every(m => m.completed);
 
       if (groupStageComplete) {

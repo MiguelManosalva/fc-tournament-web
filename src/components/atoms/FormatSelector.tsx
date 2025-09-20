@@ -33,7 +33,7 @@ const formatOptions: FormatOption[] = [
   {
     format: 'champions',
     title: 'Champions League',
-    description: '3 rondas de grupos (todos juegan 3 partidos) + semifinales 1°vs4° y 2°vs3°',
+    description: 'Fase de grupos (todos juegan igual cantidad) + semifinales 1°vs4° y 2°vs3°',
     icon: '🏆',
     recommended: 8,
     pros: ['Todos juegan igual cantidad', 'Sistema justo', 'Emociones de Champions', 'Top 4 avanzan'],
@@ -59,11 +59,21 @@ export const FormatSelector = ({
       case 'knockout':
         return playerCount - 1;
       case 'champions':
-        // Champions: 3 rondas donde todos juegan + semifinales + final
+        // Champions: fase de grupos + semifinales + final + 3er lugar
         if (playerCount < 4) return 0;
-        // 3 rondas de fase de grupos (cada jugador juega 3 partidos)
-        const groupMatches = Math.floor(playerCount / 2) * 3; // 3 rondas, playerCount/2 partidos por ronda
-        const knockoutMatches = 3; // 2 semifinales + 1 final
+
+        const isOddPlayers = playerCount % 2 === 1;
+        let groupMatches;
+
+        if (isOddPlayers) {
+          // Para números impares: cada jugador tiene 1 bye, resto juega
+          groupMatches = Math.floor(playerCount / 2) * playerCount; // rounds = playerCount, matches per round = playerCount/2
+        } else {
+          // Para números pares: 3 rondas normales
+          groupMatches = Math.floor(playerCount / 2) * 3; // 3 rondas, playerCount/2 partidos por ronda
+        }
+
+        const knockoutMatches = 4; // 2 semifinales + 1 final + 1 tercer lugar
         return groupMatches + knockoutMatches;
       default:
         return 0;

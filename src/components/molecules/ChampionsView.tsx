@@ -224,7 +224,7 @@ export const ChampionsView = ({ tournament, onUpdateResult, onEditResult }: Cham
                 }, {} as Record<number, Match[]>)
               ).map(([round, matches]) => (
                 <div key={round}>
-                  {matches.map((match, index) => (
+                  {matches.map((match) => (
                     <div key={match.id} className="mb-6">
                       <h4 className="text-lg font-semibold mb-3">
                         {getRoundName(parseInt(round), true, match)}
