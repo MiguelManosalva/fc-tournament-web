@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run lint)",
+      "Bash(for port in {5170..5178})",
+      "Bash(do lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(done)",
+      "Bash(netstat:*)",
+      "Bash(awk:*)",
+      "Bash(xargs -r kill -9)",
+      "Read(//c/Proyectos/prime-survey-web/**)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
